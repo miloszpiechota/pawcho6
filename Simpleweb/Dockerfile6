@@ -1,0 +1,55 @@
+# syntax=docker/dockerfile:1.2
+FROM node:alpine AS builder
+
+# Instalacja curl do wykonania health check
+RUN apk add --update curl && \
+    rm -rf /var/cache/apk/*
+
+# Ustawienie katalogu roboczego w obrazie
+WORKDIR /usr/app
+
+# Skopiowanie pliku package.json do obrazu
+COPY ./package.json ./
+
+# Instalacja zależności npm
+RUN npm install
+
+# Skopiowanie pliku index.js do obrazu
+COPY ./index.js ./
+
+# Ustawienie właściwości pliku known_hosts dla hosta GitHub
+RUN touch /root/.ssh/known_hosts && \
+    ssh-keyscan github.com >> /root/.ssh/known_hosts 
+
+# Skopiowanie klucza SSH do kontenera
+COPY C:/Users/Milosz/.ssh/id_rsa /root/.ssh/id_rsa
+RUN chmod 600 /root/.ssh/id_rsa
+
+# Pobranie repozytorium z wykorzystaniem protokołu SSH
+RUN --mount=type=ssh git clone https://github.com/miloszpiechota/docker.git .
+
+# Etap końcowy obrazu
+FROM alpine
+
+# Ustawienie katalogu roboczego w obrazie
+WORKDIR /usr/app
+
+# Instalacja node.js i npm w obrazie Alpine
+RUN apk --no-cache add nodejs npm
+
+# Instalacja frameworka Express
+RUN npm install express
+
+# Otwarcie portu 8080, na którym będzie działać serwer
+EXPOSE 8080
+
+# Ustawienie zmiennej środowiskowej VERSION z wartością domyślną production.v1.0
+ARG VERSION
+ENV VERSION=production.${VERSION:-v1.0}
+
+# Komenda uruchamiająca serwer
+CMD ["node", "index.js"]
+
+# Health check: sprawdza, czy serwer jest dostępny pod adresem localhost:8090/health
+HEALTHCHECK --interval=30s --timeout=5s \
+  CMD curl --silent --fail localhost:8090/health || exit 1

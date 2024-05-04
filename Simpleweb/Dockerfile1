@@ -1,0 +1,37 @@
+# Stage 1: Build the Node.js application
+FROM node AS build1
+
+# Set the working directory in the image
+WORKDIR /usr/app
+
+# Copy application files
+COPY . .
+
+# Install npm dependencies
+RUN npm install
+
+# Set the environment variable for application version
+ARG VERSION
+ENV APP_VER=production.${VERSION:-v1.0}
+
+# Stage 2: Utilize the Nginx base image
+FROM nginx:latest
+
+# Copy the Nginx configuration file handling JavaScript files
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copy the built application from the first stage to the Nginx image
+COPY --from=build1 /usr/app /usr/share/nginx/html
+
+# Set the working directory
+WORKDIR /usr/share/nginx/html
+
+# Set the port on which the HTTP server will run
+EXPOSE 80
+
+# Set the default page
+CMD ["nginx", "-g", "daemon off;"]
+
+# Health check: check if the server is available at localhost:80
+HEALTHCHECK --interval=30s --timeout=5s \
+  CMD curl --silent --fail localhost:80 || exit 1
